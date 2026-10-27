@@ -1,0 +1,99 @@
+name: Build APK from uploaded zip
+
+on:
+  push:
+    paths: ["stage5.zip"]          # upload / replace a zip in the repo root -> build
+  workflow_dispatch:
+    inputs:
+      minify:
+        description: Enable R8 + shrinking on the debug build (smaller, can break reflection)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          ZIP=$(ls -t *.zip | head -n1)
+          echo "Using $ZIP"
+          mkdir -p /tmp/proj && unzip -q -o "$ZIP" -d /tmp/proj
+          ROOT=$(dirname "$(find /tmp/proj -name settings.gradle.kts -not -path '*/node_modules/*' | head -n1)")
+          echo "Project root: $ROOT"
+          rm -f "$ROOT/local.properties"       # contains the author's own SDK path
+          echo "PROJ=$ROOT" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Make wrapper runnable (generate it if the zip has none)
+        working-directory: ${{ env.PROJ }}
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.9 --distribution-type bin
+          fi
+          chmod +x ./gradlew
+
+      - name: Optional R8 init script
+        if: ${{ inputs.minify }}
+        run: |
+          cat > "$RUNNER_TEMP/r8.init.gradle" <<'EOT'
+          allprojects { p ->
+            p.plugins.withId('com.android.application') {
+              p.extensions.getByName('androidComponents').finalizeDsl { android ->
+                android.buildTypes.getByName('debug') {
+                  minifyEnabled = true
+                  shrinkResources = true
+                  proguardFiles(android.getDefaultProguardFile('proguard-android-optimize.txt'), p.file('proguard-rules.pro'))
+                }
+              }
+            }
+          }
+          EOT
+
+      - name: Build debug APK
+        working-directory: ${{ env.PROJ }}
+        run: |
+          EXTRA=""
+          [ "${{ inputs.minify }}" = "true" ] && EXTRA="--init-script $RUNNER_TEMP/r8.init.gradle"
+          ./gradlew :app:assembleDebug $EXTRA \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" \
+            --build-cache --console=plain --stacktrace --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          find "$PROJ" -path "*/build/outputs/apk/*" -name "*.apk" -exec cp {} dist/ \;
+          ls -lh dist; [ -n "$(ls -A dist)" ]
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YouPlay-debug-${{ github.sha }}
+          path: dist/*.apk
+          retention-days: 14
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: ${{ env.PROJ }}/**/build/reports/
+          retention-days: 7
+          
