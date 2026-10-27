@@ -2,7 +2,7 @@ name: Build APK from uploaded zip
 
 on:
   push:
-    paths: ["stage5.zip"]          # upload / replace a zip in the repo root -> build
+    paths: ["*.zip"]          # upload / replace a zip in the repo root -> build
   workflow_dispatch:
     inputs:
       minify:
@@ -39,7 +39,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - name: Android SDK (preinstalled on the runner) - accept licenses, point Gradle at it
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          echo "sdk.dir=$ANDROID_HOME" > "$PROJ/local.properties"
 
       - uses: gradle/actions/setup-gradle@v4
 
@@ -85,15 +88,4 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: YouPlay-debug-${{ github.sha }}
-          path: dist/*.apk
-          retention-days: 14
-
-      - name: Upload build reports on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-reports
-          path: ${{ env.PROJ }}/**/build/reports/
-          retention-days: 7
-          
+          name: YouPlay-debug-
