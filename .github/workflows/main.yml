@@ -2,7 +2,7 @@ name: Build APK from uploaded zip
 
 on:
   push:
-    paths: ["stage5.zip"]          # upload / replace a zip in the repo root -> build
+    paths: ["YouPlay.zip"]          # upload / replace a zip in the repo root -> build
   workflow_dispatch:
     inputs:
       minify:
