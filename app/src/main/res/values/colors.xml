@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="youplay_red">#FFE50914</color>
+    <color name="youplay_black">#FF0A0A0A</color>
+    <color name="youplay_surface">#FF141414</color>
+    <color name="ic_launcher_background">#FF000000</color>
+</resources>
