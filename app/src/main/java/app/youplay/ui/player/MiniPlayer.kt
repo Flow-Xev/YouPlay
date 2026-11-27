@@ -8,6 +8,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -112,10 +113,17 @@ fun FloatingMiniPlayer(
             Modifier
                 .offset { IntOffset(offset.value.x.roundToInt(), offset.value.y.roundToInt()) }
                 .size(miniW, miniH)
-                .graphicsLayer { scaleX = lift; scaleY = lift }
-                .shadow(if (lifted) 20.dp else 12.dp, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp))
+                .graphicsLayer {
+                    scaleX = lift; scaleY = lift
+                    // fade out as it is dragged off the side, hinting that letting go dismisses it
+                    val p = offset.value.x
+                    val off = if (p < minX) minX - p else if (p > maxX) p - maxX else 0f
+                    alpha = (1f - off / (wPx * 0.9f)).coerceIn(0.25f, 1f)
+                }
+                .shadow(if (lifted) 22.dp else 12.dp, RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color.Black)
+                .border(1.dp, Color.White.copy(0.10f), RoundedCornerShape(14.dp))
                 .pointerInput(Unit) { detectTapGestures(onTap = { onExpand(s.videoId) }) }
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -162,37 +170,41 @@ fun FloatingMiniPlayer(
                     Brush.verticalGradient(listOf(Color.Black.copy(0.35f), Color.Transparent, Color.Black.copy(0.45f))),
                 ),
             )
-            Box(
-                Modifier.align(Alignment.TopStart).padding(4.dp).size(36.dp).background(Color.Black.copy(0.45f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (buffering) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                else YpIconTap(
-                    if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    "Play/Pause", controller::toggle, size = 36.dp, iconSize = 22.dp,
-                )
-            }
             YpIconTap(
                 Icons.Filled.Close, "Close", controller::stop,
                 modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).background(Color.Black.copy(0.45f), CircleShape),
-                size = 36.dp, iconSize = 20.dp,
+                size = 30.dp, iconSize = 18.dp,
             )
+            // centred transport: -10s · play/pause · +10s
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                Modifier.align(Alignment.Center),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 YpIconTap(
                     Icons.Filled.Replay10, "Back 10s", { controller.seekBy(-10_000) },
-                    modifier = Modifier.background(Color.Black.copy(0.45f), CircleShape), size = 32.dp, iconSize = 20.dp,
+                    modifier = Modifier.background(Color.Black.copy(0.4f), CircleShape), size = 32.dp, iconSize = 18.dp,
                 )
+                Box(
+                    Modifier.size(42.dp).background(Color.Black.copy(0.5f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (buffering) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Color.White)
+                    else YpIconTap(
+                        if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        if (playing) "Pause" else "Play", controller::toggle, size = 42.dp, iconSize = 26.dp,
+                    )
+                }
                 YpIconTap(
                     Icons.Filled.Forward10, "Forward 10s", { controller.seekBy(10_000) },
-                    modifier = Modifier.background(Color.Black.copy(0.45f), CircleShape), size = 32.dp, iconSize = 20.dp,
+                    modifier = Modifier.background(Color.Black.copy(0.4f), CircleShape), size = 32.dp, iconSize = 18.dp,
                 )
             }
             val progress = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
-            Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(2.dp)) {
-                drawLine(YouPlayRed, Offset(0f, size.height / 2), Offset(size.width * progress, size.height / 2), size.height, StrokeCap.Butt)
+            Canvas(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp)) {
+                val cy = size.height / 2
+                drawLine(Color.White.copy(0.25f), Offset(0f, cy), Offset(size.width, cy), size.height, StrokeCap.Butt)
+                drawLine(YouPlayRed, Offset(0f, cy), Offset(size.width * progress, cy), size.height, StrokeCap.Butt)
             }
         }
     }
