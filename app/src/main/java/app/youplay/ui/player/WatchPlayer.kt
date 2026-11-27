@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -236,6 +237,11 @@ fun WatchPlayer(
         .background(Color.Black)
     val (pos, dur) = progress
     val ended = dur > 0 && pos >= dur - 400 && !isPlaying
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val scrubChapter = scrub?.let { sf -> chapters.indexOfLast { it.startMs <= (sf * dur).toLong() } } ?: -1
+    LaunchedEffect(scrubChapter) {
+        if (scrubChapter >= 0) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+    }
     val qualityLabel = if (quality == 0) (if (playingH > 0) "Auto · ${playingH}p" else "Auto")
     else QualityOptions.firstOrNull { it.first == quality }?.second ?: "${quality}p"
 
@@ -418,8 +424,9 @@ fun WatchPlayer(
                     }
                     IconButton(onClick = { menu = MenuPage.Main }) { Icon(Icons.Filled.MoreVert, "More", tint = Color.White) }
                 }
-                // centre transport
-                Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (scrub != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(0.35f)))
+                // centre transport (hidden while scrubbing so the preview has the stage)
+                if (scrub == null) Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     IconButton(onClick = { controller.seekBy(-10_000); tick++ }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Filled.Replay10, "Back 10 seconds", tint = Color.White, modifier = Modifier.size(34.dp))
                     }
@@ -476,11 +483,18 @@ fun WatchPlayer(
                             storyboard?.let {
                                 ScrubPreview(it, (sf * dur).toLong(), Modifier.align(androidx.compose.ui.BiasAlignment(sf * 2f - 1f, -1f)).padding(bottom = 26.dp))
                             }
-                            Text(
-                                formatTime((sf * dur).toLong()), color = Color.White, style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.align(androidx.compose.ui.BiasAlignment(sf * 2f - 1f, 1f))
-                                    .background(Color.Black.copy(0.75f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
-                            )
+                            val scrubChap = chapters.lastOrNull { it.startMs <= (sf * dur).toLong() }
+                            Column(
+                                Modifier.align(androidx.compose.ui.BiasAlignment(sf * 2f - 1f, 1f)).widthIn(max = 180.dp)
+                                    .background(Color.Black.copy(0.78f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(formatTime((sf * dur).toLong()), color = Color.White, style = MaterialTheme.typography.labelLarge)
+                                if (scrubChap != null) Text(
+                                    scrubChap.title, color = Color.White.copy(0.8f), style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                     SeekBar(
@@ -570,17 +584,30 @@ private fun SeekBar(
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val cy = size.height / 2f
-            val th = (if (scrubbing) 5.dp else 3.dp).toPx()
-            fun bar(frac: Float, color: Color) = drawLine(
-                color, Offset(th / 2, cy), Offset(th / 2 + (size.width - th) * frac, cy), th, StrokeCap.Round,
-            )
-            bar(1f, Color.White.copy(0.28f))
-            if (buffered > 0f) bar(buffered, Color.White.copy(0.45f))
-            if (progress > 0f) bar(progress, accent)
-            marks.forEach { m -> val x = th / 2 + (size.width - th) * m; drawLine(Color.Black, Offset(x, cy - th / 2 - 1f), Offset(x, cy + th / 2 + 1f), 1.5.dp.toPx()) }
+            val base = (if (scrubbing) 5.dp else 3.dp).toPx()
+            // chapters split the bar into segments with small gaps; the segment under the finger grows while scrubbing
+            val cuts = marks.filter { it > 0f && it < 1f }.sorted()
+            val bounds = listOf(0f) + cuts + listOf(1f)
+            val gap = if (cuts.isEmpty()) 0f else 2.5.dp.toPx()
+            for (i in 0 until bounds.size - 1) {
+                val a = bounds[i]; val b = bounds[i + 1]
+                val active = scrubbing && cuts.isNotEmpty() && progress >= a && progress <= b
+                val th = if (active) base * 1.7f else base
+                val x0 = a * size.width + (if (i > 0) gap / 2f else 0f) + th / 2f
+                val x1 = b * size.width - (if (i < bounds.size - 2) gap / 2f else 0f) - th / 2f
+                if (x1 < x0) continue
+                fun seg(frac: Float, color: Color) {
+                    val xe = (frac * size.width).coerceIn(x0, x1)
+                    if (frac * size.width > x0 - th / 2f) drawLine(color, Offset(x0, cy), Offset(xe, cy), th, StrokeCap.Round)
+                }
+                seg(1f, Color.White.copy(0.28f))
+                if (buffered > 0f) seg(buffered, Color.White.copy(0.45f))
+                if (progress > 0f) seg(progress, accent)
+            }
             val r = (if (scrubbing) 9.dp else 6.dp).toPx()
-            if (scrubbing) drawCircle(accent.copy(0.28f), r * 1.9f, Offset((r + (size.width - 2 * r) * progress).coerceIn(r, size.width - r), cy))
-            drawCircle(accent, r, Offset((r + (size.width - 2 * r) * progress).coerceIn(r, size.width - r), cy))
+            val tx = (r + (size.width - 2 * r) * progress).coerceIn(r, size.width - r)
+            if (scrubbing) drawCircle(accent.copy(0.28f), r * 1.9f, Offset(tx, cy))
+            drawCircle(accent, r, Offset(tx, cy))
         }
     }
 }
