@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -83,6 +84,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -188,6 +191,11 @@ fun WatchPlayer(
     var zoom by remember { mutableStateOf(false) }
     var hud by remember { mutableStateOf<Triple<ImageVector, String, Float>?>(null) }
     var brightness by remember { mutableStateOf(-1f) }
+    // double-tap seek feedback: side (-1 back, 1 forward, 0 hidden), running total in seconds, pulse retriggers the ripple
+    var seekSide by remember { mutableIntStateOf(0) }
+    var seekTotal by remember { mutableIntStateOf(0) }
+    var seekPulse by remember { mutableIntStateOf(0) }
+    LaunchedEffect(seekPulse) { if (seekPulse > 0) { delay(750); seekSide = 0; seekTotal = 0 } }
     var volume by remember { mutableStateOf(-1f) }
 
     LaunchedEffect(controls, isPlaying, menu, tick, scrub) {
@@ -303,14 +311,18 @@ fun WatchPlayer(
                     }
                     // tap: wait for more taps; every extra tap skips another 10s on its side
                     var skipped = 0
+                    var lastSide = 0
                     while (true) {
                         val next = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) {
                             awaitFirstDown(requireUnconsumed = false)
                         } ?: break
                         waitForUpOrCancellation()
                         skipped++
-                        if (next.position.x < size.width / 2f) { controller.seekBy(-10_000); flash = "« ${skipped * 10}s" }
-                        else { controller.seekBy(10_000); flash = "${skipped * 10}s »" }
+                        val side = if (next.position.x < size.width / 2f) -1 else 1
+                        // switching sides mid-burst starts a fresh count on the new side
+                        seekTotal = if (side == lastSide && seekSide == side) seekTotal + 10 else 10
+                        lastSide = side; seekSide = side; seekPulse++
+                        controller.seekBy(side * 10_000L)
                     }
                     if (skipped == 0) { controls = !controls; tick++ }
                 }
@@ -322,6 +334,13 @@ fun WatchPlayer(
                 it, color = Color.White, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 52.dp)
                     .background(YouPlayRed.copy(0.9f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp),
+            )
+        }
+
+        if (seekSide != 0) {
+            SeekRipple(
+                side = seekSide, seconds = seekTotal, pulse = seekPulse,
+                modifier = Modifier.align(if (seekSide < 0) Alignment.CenterStart else Alignment.CenterEnd),
             )
         }
 
@@ -600,5 +619,56 @@ private fun ScrubPreview(sb: app.youplay.domain.Storyboard, ms: Long, modifier: 
                 .size((sb.perX * sb.frameW * sc).dp, (sb.perY * sb.frameH * sc).dp)
                 .offset((-col * sb.frameW * sc).dp, (-row * sb.frameH * sc).dp),
         )
+    }
+}
+
+/**
+ * Double-tap seek feedback: a curved scrim hugging the tapped edge, a soft circle that blooms on every tap,
+ * three chevrons that light up in sequence and the running total ("+30 seconds").
+ */
+@Composable
+private fun SeekRipple(side: Int, seconds: Int, pulse: Int, modifier: Modifier = Modifier) {
+    val bloom = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(pulse) {
+        bloom.snapTo(0f)
+        bloom.animateTo(1f, androidx.compose.animation.core.tween(450, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    val chev = androidx.compose.animation.core.rememberInfiniteTransition(label = "chev")
+    val phase by chev.animateFloat(
+        0f, 3f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "phase",
+    )
+    val accent = YouPlayRed
+    Box(
+        modifier.fillMaxHeight().fillMaxWidth(0.42f).clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val r = size.width * 1.4f
+            val cx = if (side < 0) size.width - r else r
+            drawCircle(Color.White.copy(0.10f), r, Offset(cx, size.height / 2f))
+            val b = bloom.value
+            drawCircle(accent.copy(0.22f * (1f - b)), size.height * 0.55f * b, Offset(size.width / 2f, size.height / 2f))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row {
+                for (i in 0 until 3) {
+                    // forward lights left→right, back lights right→left
+                    val idx = if (side > 0) i else 2 - i
+                    val lit = 1f - (abs(phase - idx - 0.5f) / 1.5f).coerceIn(0f, 1f)
+                    Icon(
+                        Icons.Filled.PlayArrow, null,
+                        tint = Color.White.copy(0.35f + 0.65f * lit),
+                        modifier = Modifier.size(18.dp).graphicsLayer { if (side < 0) rotationZ = 180f },
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                (if (side < 0) "−" else "+") + "$seconds seconds",
+                color = Color.White, style = MaterialTheme.typography.labelLarge,
+            )
+        }
     }
 }
