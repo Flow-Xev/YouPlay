@@ -244,7 +244,7 @@ fun WatchScreen(
                     onChapters = { showChapters = true },
                 )
             }
-            StateScaffold(state, viewModel::load, Modifier.fillMaxSize().graphicsLayer { val q = prog.value; alpha = (1f - q * 1.8f).coerceIn(0f, 1f); translationY = q * sh * 0.1f }) { page ->
+            StateScaffold(state, viewModel::load, Modifier.fillMaxSize().graphicsLayer { val q = prog.value; alpha = (1f - q * 1.8f).coerceIn(0f, 1f); translationY = q * sh * 0.1f }, loading = { app.youplay.ui.components.WatchSkeleton() }) { page ->
                 val s = page.stream
                 val extras = page.extras
                 LazyColumn(Modifier.fillMaxSize()) {
