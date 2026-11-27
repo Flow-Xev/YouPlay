@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.BrightnessMedium
@@ -543,6 +544,20 @@ fun WatchPlayer(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+                // sub-pages get a header with a way back to the main menu
+                if (page != MenuPage.Main) Row(
+                    Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { menu = MenuPage.Main }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        when (page) { MenuPage.Quality -> "Quality"; MenuPage.Speed -> "Playback speed"; MenuPage.Sleep -> "Sleep timer"; else -> "" },
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 when (page) {
                     MenuPage.Main -> {
                         MenuRow(Icons.Filled.HighQuality, "Quality", qualityLabel) { menu = MenuPage.Quality }
