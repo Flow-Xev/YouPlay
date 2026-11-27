@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -350,7 +351,7 @@ fun WatchPlayer(
             )
         }
 
-        if (buffering && error == null) CircularProgressIndicator(color = YouPlayRed)
+        if (buffering && error == null && !controls) CircularProgressIndicator(color = YouPlayRed)
 
         flash?.let {
             val pop = remember { androidx.compose.animation.core.Animatable(0.6f) }
@@ -426,37 +427,51 @@ fun WatchPlayer(
                 }
                 if (scrub != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(0.35f)))
                 // centre transport (hidden while scrubbing so the preview has the stage)
-                if (scrub == null) Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    IconButton(onClick = { controller.seekBy(-10_000); tick++ }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Replay10, "Back 10 seconds", tint = Color.White, modifier = Modifier.size(34.dp))
+                if (scrub == null) Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (fullscreen) 40.dp else 24.dp)) {
+                    IconButton(onClick = { controller.seekBy(-10_000); tick++ }, modifier = Modifier.size(48.dp).background(Color.Black.copy(0.32f), CircleShape)) {
+                        Icon(Icons.Filled.Replay10, "Back 10 seconds", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
                     IconButton(
                         onClick = { controller.toggle(); tick++ },
-                        modifier = Modifier.size(68.dp).background(Color.Black.copy(0.5f), CircleShape),
+                        modifier = Modifier.size(if (fullscreen) 76.dp else 66.dp)
+                            .background(Color.Black.copy(0.45f), CircleShape)
+                            .border(1.5.dp, Color.White.copy(0.18f), CircleShape),
                     ) {
-                        androidx.compose.animation.Crossfade(
+                        if (buffering && !ended) {
+                            // buffering lives inside the play button instead of a spinner on top of it
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(38.dp))
+                        } else androidx.compose.animation.Crossfade(
                             targetState = if (ended) 2 else if (isPlaying) 1 else 0,
                             animationSpec = androidx.compose.animation.core.tween(160), label = "pp",
                         ) { st ->
                             Icon(
                                 when (st) { 2 -> Icons.Filled.Replay; 1 -> Icons.Filled.Pause; else -> Icons.Filled.PlayArrow },
-                                "Play/Pause", tint = Color.White, modifier = Modifier.size(42.dp),
+                                if (st == 1) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(if (fullscreen) 46.dp else 40.dp),
                             )
                         }
                     }
-                    IconButton(onClick = { controller.seekBy(10_000); tick++ }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(34.dp))
+                    IconButton(onClick = { controller.seekBy(10_000); tick++ }, modifier = Modifier.size(48.dp).background(Color.Black.copy(0.32f), CircleShape)) {
+                        Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
-                    if (onNext != null) IconButton(onClick = { onNext() }, modifier = Modifier.size(44.dp)) {
-                        Icon(androidx.compose.material.icons.Icons.Filled.SkipNext, "Next video", tint = Color.White, modifier = Modifier.size(30.dp))
-                    }
+                }
+                // next sits on its own at the right edge so the transport stays centred
+                if (scrub == null && onNext != null) IconButton(
+                    onClick = { onNext() },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(44.dp).background(Color.Black.copy(0.32f), CircleShape),
+                ) {
+                    Icon(Icons.Filled.SkipNext, "Next video", tint = Color.White, modifier = Modifier.size(26.dp))
                 }
                 // bottom: time row + seek bar
                 Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val shown = if (scrub != null) (scrub!! * dur).toLong() else pos
-                        Text(formatTime(shown), color = Color.White, style = MaterialTheme.typography.labelMedium)
-                        Text("  /  ${formatTime(dur)}", color = Color.White.copy(0.7f), style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            Modifier.background(Color.Black.copy(0.38f), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(formatTime(shown), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                            Text(" / ${formatTime(dur)}", color = Color.White.copy(0.65f), style = MaterialTheme.typography.labelMedium)
+                        }
                         val chap = chapters.lastOrNull { it.startMs <= shown }
                         Box(Modifier.weight(1f)) {
                             if (chap != null) Text(
