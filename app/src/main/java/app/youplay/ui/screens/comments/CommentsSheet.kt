@@ -1,6 +1,13 @@
 package app.youplay.ui.screens.comments
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,20 +89,32 @@ fun CommentsSheet(videoId: String, countText: String? = null, onDismiss: () -> U
     ) {
         Column(Modifier.fillMaxHeight(0.92f).fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(listOfNotNull("Comments", countText?.takeIf { it.isNotBlank() }).joinToString(" · "), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Comments", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    countText?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.width(8.dp))
+                        Text(it, color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, "Close", tint = Color.White) }
             }
+            HorizontalDivider(Modifier.padding(top = 6.dp), color = Color.White.copy(0.08f))
             toast?.let { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val st = state) {
-                    UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = YouPlayRed)
+                    UiState.Loading -> app.youplay.ui.components.CommentsSkeleton(Modifier.align(Alignment.TopStart))
                     is UiState.Error -> Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(st.message, color = Muted, fontSize = 13.sp)
                         TextButton(onClick = vm::refresh) { Text("Retry", color = YouPlayRed) }
                     }
                     is UiState.Success -> {
                         val data = st.data
-                        if (data.comments.isEmpty()) Text("No comments yet.", color = Muted, modifier = Modifier.align(Alignment.Center))
+                        if (data.comments.isEmpty()) Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Forum, null, tint = Muted, modifier = Modifier.size(40.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("No comments yet", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Be the first to start the conversation", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                        }
                         else LazyColumn(Modifier.fillMaxWidth()) {
                             items(data.comments, key = { it.id }) { c ->
                                 CommentRow(
@@ -132,6 +151,11 @@ fun CommentsSheet(videoId: String, countText: String? = null, onDismiss: () -> U
                             value = text, onValueChange = { text = it },
                             placeholder = { Text(if (replyTo != null) "Add a reply…" else "Add a comment…", color = Muted) },
                             modifier = Modifier.weight(1f), maxLines = 4, shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = YouPlayRed, unfocusedBorderColor = Color(0xFF333333),
+                                focusedContainerColor = Color(0xFF1C1C1C), unfocusedContainerColor = Color(0xFF1C1C1C),
+                                cursorColor = YouPlayRed, focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            ),
                         )
                         if (ui?.posting == true) CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp, color = YouPlayRed)
                         else IconButton(onClick = { vm.post(text, replyTo) { text = ""; replyTo = null } }, enabled = text.isNotBlank()) {
@@ -159,26 +183,52 @@ private fun CommentRow(
     c: CommentItem, liked: Boolean, canReply: Boolean,
     onLike: () -> Unit, onReply: () -> Unit, onDelete: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+    var expanded by remember(c.id) { mutableStateOf(false) }
+    var overflows by remember(c.id) { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
         YpAvatar(c.authorThumbUrl, c.author, 36.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(listOfNotNull(c.author, c.publishedText).joinToString(" · "), color = Muted, fontSize = 12.sp)
-            Text(c.text, color = Color.White, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    c.author, color = Color.White.copy(0.9f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                )
+                c.publishedText?.takeIf { it.isNotBlank() }?.let { Text("  ·  $it", color = Muted, fontSize = 12.sp, maxLines = 1) }
+            }
+            // long comments fold to five lines; tap the text or "Read more" to unfold
+            Text(
+                c.text, color = Color.White, fontSize = 14.sp, lineHeight = 20.sp,
+                maxLines = if (expanded) Int.MAX_VALUE else 5, overflow = TextOverflow.Ellipsis,
+                onTextLayout = { if (!expanded) overflows = it.hasVisualOverflow },
+                modifier = Modifier.padding(top = 3.dp).clickable(enabled = overflows || expanded) { expanded = !expanded },
+            )
+            if (overflows || expanded) Text(
+                if (expanded) "Show less" else "Read more", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 2.dp).clickable { expanded = !expanded },
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (c.likeToken != null || c.unlikeToken != null) {
                     IconButton(onClick = onLike, modifier = Modifier.size(32.dp)) {
-                        Icon(if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Like", tint = if (liked) YouPlayRed else Muted, modifier = Modifier.size(18.dp))
+                        Icon(if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Like", tint = if (liked) YouPlayRed else Muted, modifier = Modifier.size(16.dp))
                     }
-                }
+                } else Spacer(Modifier.width(4.dp))
                 c.likeCountText?.takeIf { it.isNotBlank() }?.let { Text(it, color = Muted, fontSize = 12.sp) }
-                if (canReply) TextButton(onClick = onReply) { Text("Reply", color = Muted) }
-                if (c.replyCount > 0) Text("${c.replyCount} replies", color = Muted, fontSize = 12.sp)
+                if (canReply) Text(
+                    "Reply", color = Color.White.copy(0.85f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 10.dp).clip(RoundedCornerShape(50)).clickable(onClick = onReply)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
                 Spacer(Modifier.weight(1f))
                 if (c.deleteToken != null) IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Filled.Delete, "Delete", tint = Muted, modifier = Modifier.size(18.dp))
                 }
             }
+            if (c.replyCount > 0) Text(
+                "${c.replyCount} ${if (c.replyCount == 1) "reply" else "replies"}",
+                color = YouPlayRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+            )
         }
     }
 }
