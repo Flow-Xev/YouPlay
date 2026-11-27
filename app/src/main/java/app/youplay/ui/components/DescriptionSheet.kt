@@ -1,7 +1,6 @@
 package app.youplay.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,14 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.youplay.domain.Chapter
-import app.youplay.ui.theme.YouPlayRed
 
 private val Muted = Color(0xFFAAAAAA)
 private val Card = Color(0xFF242424)
 
 /**
- * YouTube-style Description sheet: title, a Views / Date stat strip, channel, chapters, and the full
+ * YouTube-style Description sheet: title, a Views / Date stat strip, channel, and the full
  * selectable description in a card. Views and date come from the video's page on the account session.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,8 +49,6 @@ fun DescriptionSheet(
     views: String?,
     published: String?,
     description: String?,
-    chapters: List<Chapter> = emptyList(),
-    onSeek: (Long) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val v = viewsStat(views)
@@ -91,22 +86,6 @@ fun DescriptionSheet(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                if (chapters.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).padding(12.dp)) {
-                        Text("Chapters", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                        chapters.forEach { c ->
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onSeek(c.startMs); onDismiss() }.padding(vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(stamp(c.startMs), color = YouPlayRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
-                                Text(c.title, color = Color.White, fontSize = 13.sp, maxLines = 2)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).padding(14.dp)) {
                     SelectionContainer {
                         Text(
@@ -155,9 +134,4 @@ private fun dateStat(raw: String?): Pair<String, String>? {
         if (m in 1..12) return "${months[m - 1]} ${it.groupValues[3].toInt()}" to it.groupValues[1]
     }
     return t to "Uploaded"
-}
-
-private fun stamp(ms: Long): String {
-    val t = ms / 1000
-    return if (t >= 3600) "%d:%02d:%02d".format(t / 3600, t / 60 % 60, t % 60) else "%d:%02d".format(t / 60, t % 60)
 }

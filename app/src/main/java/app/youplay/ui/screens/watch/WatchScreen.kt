@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.List as ChaptersListIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -119,6 +121,7 @@ fun WatchScreen(
     var toast by remember { mutableStateOf<String?>(null) }
     var showComments by remember { mutableStateOf(false) }
     var showDesc by remember { mutableStateOf(false) }
+    var showChapters by remember { mutableStateOf(false) }
     var saveMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(message) {
@@ -174,7 +177,15 @@ fun WatchScreen(
                 onToggleFullscreen = toggleFullscreen, onMinimize = onBack,
                 onQuality = viewModel::setQuality, extraActions = listOf(downloadAction, shareAction),
                 chapters = chapters, storyboard = px.storyboard, onNext = nextId?.let { id -> { onOpenVideo(id) } },
+                onChapters = { showChapters = true },
             )
+            if (showChapters && chapters.isNotEmpty()) {
+                val (cpos, cdur) = app.youplay.ui.player.rememberPlayerProgress(controller).value
+                app.youplay.ui.components.ChaptersSheet(
+                    chapters = chapters, positionMs = cpos, durationMs = cdur,
+                    onSeek = { controller.seekTo(it) }, onDismiss = { showChapters = false },
+                )
+            }
         }
         return
     }
@@ -230,6 +241,7 @@ fun WatchScreen(
                     onToggleFullscreen = toggleFullscreen, onMinimize = minimize,
                     onQuality = viewModel::setQuality, extraActions = listOf(downloadAction, shareAction),
                     chapters = chapters, storyboard = px.storyboard, onNext = nextId?.let { id -> { onOpenVideo(id) } },
+                    onChapters = { showChapters = true },
                 )
             }
             StateScaffold(state, viewModel::load, Modifier.fillMaxSize().graphicsLayer { val q = prog.value; alpha = (1f - q * 1.8f).coerceIn(0f, 1f); translationY = q * sh * 0.1f }) { page ->
@@ -238,11 +250,15 @@ fun WatchScreen(
                 LazyColumn(Modifier.fillMaxSize()) {
                     item {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                            Text(s.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 22.sp)
-                            val meta = listOfNotNull(extras.views, extras.published).joinToString(" · ")
-                            if (meta.isNotBlank()) {
+                            // Title + short meta only; the full description lives in DescriptionSheet (tap to open).
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { showDesc = true }) {
+                                Text(s.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 22.sp)
                                 Spacer(Modifier.height(4.dp))
-                                Text(meta, color = Color(0xFFAAAAAA), fontSize = 13.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val meta = listOfNotNull(extras.views, extras.published).joinToString(" · ")
+                                    if (meta.isNotBlank()) Text(meta, color = Color(0xFFAAAAAA), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                    Text(if (meta.isNotBlank()) "  ...more" else "Description", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                             Spacer(Modifier.height(12.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -319,42 +335,23 @@ fun WatchScreen(
                                 }
                                 YpActionPill(Icons.Filled.Forum, (state as? UiState.Success)?.data?.extras?.commentCountText ?: "Comments", { showComments = true })
                             }
-                            extras.description?.takeIf { it.isNotBlank() }?.let { d ->
-                                Spacer(Modifier.height(12.dp))
-                                Box(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF1A1A1A))
-                                        .clickable { showDesc = true }
-                                        .padding(12.dp),
-                                ) {
-                                    Column {
-                                        val head = listOfNotNull(extras.views, extras.published).joinToString("  ")
-                                        if (head.isNotBlank()) Text(head, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                        Text(
-                                            d, color = Color(0xFFDDDDDD), fontSize = 13.sp, lineHeight = 18.sp,
-                                            maxLines = 3, overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 4.dp),
-                                        )
-                                        Text("…more", color = Color(0xFFAAAAAA), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
                             if (chapters.isNotEmpty()) {
+                                // Compact chapters entry: shows the chapter now playing, opens the ChaptersSheet.
+                                val (cpos, _) = app.youplay.ui.player.rememberPlayerProgress(controller).value
+                                val ci = chapters.indexOfLast { it.startMs <= cpos }.coerceAtLeast(0)
                                 Spacer(Modifier.height(12.dp))
-                                Text("Chapters", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.height(8.dp))
-                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    chapters.forEach { c ->
-                                        Column(
-                                            Modifier.width(150.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1F1F1F))
-                                                .clickable { controller.seekTo(c.startMs) }.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        ) {
-                                            Text(chapterTime(c.startMs), color = YouPlayRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                            Text(c.title, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        }
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF1A1A1A))
+                                        .clickable { showChapters = true }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ChaptersListIcon, null, tint = YouPlayRed, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Chapter ${ci + 1} of ${chapters.size}", color = Color(0xFFAAAAAA), fontSize = 11.sp)
+                                        Text(chapters[ci].title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
+                                    Text(chapterTime(chapters[ci].startMs), color = YouPlayRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                             Spacer(Modifier.height(14.dp))
@@ -408,7 +405,14 @@ fun WatchScreen(
                 title = pg.stream.title, channelName = pg.stream.channelName,
                 channelAvatarUrl = pg.extras.channelAvatarUrl, subscriberText = pg.extras.subscriberText,
                 views = pg.extras.views, published = pg.extras.published, description = pg.extras.description,
-                chapters = chapters, onSeek = { controller.seekTo(it) }, onDismiss = { showDesc = false },
+                onDismiss = { showDesc = false },
+            )
+        }
+        if (showChapters && chapters.isNotEmpty()) {
+            val (cpos, cdur) = app.youplay.ui.player.rememberPlayerProgress(controller).value
+            app.youplay.ui.components.ChaptersSheet(
+                chapters = chapters, positionMs = cpos, durationMs = cdur,
+                onSeek = { controller.seekTo(it) }, onDismiss = { showChapters = false },
             )
         }
         toast?.let { msg ->

@@ -164,6 +164,7 @@ fun WatchPlayer(
     chapters: List<app.youplay.domain.Chapter> = emptyList(),
     storyboard: app.youplay.domain.Storyboard? = null,
     onNext: (() -> Unit)? = null,
+    onChapters: (() -> Unit)? = null,
 ) {
     val isPlaying by controller.isPlaying.collectAsState()
     val buffering by controller.buffering.collectAsState()
@@ -431,10 +432,15 @@ fun WatchPlayer(
                         Text(formatTime(shown), color = Color.White, style = MaterialTheme.typography.labelMedium)
                         Text("  /  ${formatTime(dur)}", color = Color.White.copy(0.7f), style = MaterialTheme.typography.labelMedium)
                         val chap = chapters.lastOrNull { it.startMs <= shown }
-                        Text(
-                            chap?.let { "  •  ${it.title}" } ?: "", color = Color.White, style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                        )
+                        Box(Modifier.weight(1f)) {
+                            if (chap != null) Text(
+                                "${chap.title}  ›", color = Color.White, style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 8.dp).clip50()
+                                    .clickable(enabled = onChapters != null) { onChapters?.invoke() }
+                                    .background(Color.White.copy(0.12f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                            )
+                        }
                         if (speed != 1f) Text(
                             "${speed}x", color = Color.White, style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier.clip50().clickable { menu = MenuPage.Speed }
