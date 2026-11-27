@@ -238,6 +238,8 @@ fun WatchPlayer(
         .background(Color.Black)
     val (pos, dur) = progress
     val ended = dur > 0 && pos >= dur - 400 && !isPlaying
+    // bring the controls back when the video finishes so Replay / Next are one tap away
+    LaunchedEffect(ended) { if (ended) controls = true }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val scrubChapter = scrub?.let { sf -> chapters.indexOfLast { it.startMs <= (sf * dur).toLong() } } ?: -1
     LaunchedEffect(scrubChapter) {
@@ -453,6 +455,16 @@ fun WatchPlayer(
                     IconButton(onClick = { controller.seekBy(10_000); tick++ }, modifier = Modifier.size(48.dp).background(Color.Black.copy(0.32f), CircleShape)) {
                         Icon(Icons.Filled.Forward10, "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
+                }
+                if (fullscreen && ended && scrub == null && onNext != null) Row(
+                    Modifier.align(Alignment.Center).padding(top = 150.dp)
+                        .clip50().clickable { onNext() }
+                        .background(Color.White.copy(0.92f)).padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.SkipNext, null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Play next", color = Color.Black, style = MaterialTheme.typography.labelLarge)
                 }
                 // next sits on its own at the right edge so the transport stays centred
                 if (scrub == null && onNext != null) IconButton(
