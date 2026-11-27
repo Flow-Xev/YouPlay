@@ -27,6 +27,7 @@ val YouPlayTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
+        lineHeight = 21.sp,
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -40,15 +41,37 @@ val YouPlayTypography = Typography(
         fontSize = 14.sp,
         lineHeight = 20.sp,
     ),
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+    ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    ),
+    // labels carry timestamps and counters: tabular figures stop "1:09" → "1:10" from jittering
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
+        fontFeatureSettings = "tnum",
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        letterSpacing = 0.2.sp,
+        fontFeatureSettings = "tnum",
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         letterSpacing = 0.4.sp,
+        fontFeatureSettings = "tnum",
     ),
 )
