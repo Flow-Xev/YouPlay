@@ -290,15 +290,13 @@ fun WatchScreen(
                                 Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                YpActionPill(
-                                    if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-                                    (state as? UiState.Success)?.data?.extras?.likeCountText ?: "Like",
-                                    { viewModel.toggleLike(s) }, active = liked,
-                                )
-                                YpActionPill(
-                                    if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
-                                    votes?.let { compactCount(it.dislikes + if (disliked) 1 else 0) } ?: "Dislike",
-                                    viewModel::toggleDislike, active = disliked,
+                                app.youplay.ui.components.YpLikeDislikePill(
+                                    liked = liked, disliked = disliked,
+                                    likeLabel = (state as? UiState.Success)?.data?.extras?.likeCountText ?: "Like",
+                                    dislikeLabel = votes?.let { compactCount(it.dislikes + if (disliked) 1 else 0) },
+                                    likeIcon = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                                    dislikeIcon = if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
+                                    onLike = { viewModel.toggleLike(s) }, onDislike = viewModel::toggleDislike,
                                 )
                                 YpActionPill(
                                     if (dl?.status == app.youplay.data.local.DOWNLOAD_DONE) Icons.Filled.DownloadDone else Icons.Filled.Download,

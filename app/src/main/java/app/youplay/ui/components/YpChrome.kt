@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,16 +80,20 @@ fun YpSubscribe(
     compact: Boolean = false,
 ) {
     val bg by animateColorAsState(if (subscribed) Color(0xFF272727) else YouPlayRed, label = "sub")
-    val fg = if (subscribed) Color.White else Color.White
+    val fg = Color.White
+    val pop = remember { Animatable(1f) }
+    LaunchedEffect(subscribed) { pop.snapTo(0.9f); pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 600f)) }
     Row(
         modifier.bounceClick(onClick = onClick)
-            .clip(RoundedCornerShape(18.dp))
+            .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
+            .clip(RoundedCornerShape(50))
             .background(bg)
-            .padding(horizontal = if (compact) 12.dp else 14.dp, vertical = if (compact) 6.dp else 8.dp),
+            .animateContentSize(spring(dampingRatio = 0.8f, stiffness = 500f))
+            .padding(horizontal = if (compact) 14.dp else 16.dp, vertical = if (compact) 7.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (subscribed) Icon(Icons.Filled.Check, null, tint = fg, modifier = Modifier.size(14.dp))
+        if (subscribed) Icon(Icons.Filled.NotificationsNone, null, tint = fg, modifier = Modifier.size(16.dp))
         Text(if (subscribed) "Subscribed" else "Subscribe", color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -99,16 +106,70 @@ fun YpActionPill(
     modifier: Modifier = Modifier,
     active: Boolean = false,
 ) {
+    val bg by animateColorAsState(if (active) YouPlayRed.copy(0.22f) else Color(0xFF242424), label = "pillbg")
+    val pop = remember { Animatable(1f) }
+    LaunchedEffect(active) { if (active) { pop.snapTo(0.6f); pop.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 500f)) } }
     Row(
         modifier.bounceClick(onClick = onClick)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (active) Color(0xFF3F3F3F) else Color(0xFF272727))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .height(36.dp)
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Icon(icon, label, tint = Color.White, modifier = Modifier.size(18.dp))
+        Icon(
+            icon, label, tint = if (active) YouPlayRed else Color.White,
+            modifier = Modifier.size(18.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value },
+        )
         Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+/** Like | dislike joined in one pill with a hairline divider; the active side lights up in the accent. */
+@Composable
+fun YpLikeDislikePill(
+    liked: Boolean,
+    disliked: Boolean,
+    likeLabel: String,
+    dislikeLabel: String?,
+    likeIcon: ImageVector,
+    dislikeIcon: ImageVector,
+    onLike: () -> Unit,
+    onDislike: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val likePop = remember { Animatable(1f) }
+    val dislikePop = remember { Animatable(1f) }
+    LaunchedEffect(liked) { if (liked) { likePop.snapTo(0.55f); likePop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 500f)) } }
+    LaunchedEffect(disliked) { if (disliked) { dislikePop.snapTo(0.55f); dislikePop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 500f)) } }
+    Row(
+        modifier.height(36.dp).clip(RoundedCornerShape(50)).background(Color(0xFF242424)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.bounceClick(onClick = onLike).fillMaxHeight().padding(start = 14.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(
+                likeIcon, "Like", tint = if (liked) YouPlayRed else Color.White,
+                modifier = Modifier.size(18.dp).graphicsLayer { scaleX = likePop.value; scaleY = likePop.value },
+            )
+            Text(likeLabel, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        }
+        Box(Modifier.width(1.dp).height(20.dp).background(Color.White.copy(0.18f)))
+        Row(
+            Modifier.bounceClick(onClick = onDislike).fillMaxHeight().padding(start = 12.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(
+                dislikeIcon, "Dislike", tint = if (disliked) YouPlayRed else Color.White,
+                modifier = Modifier.size(18.dp).graphicsLayer { scaleX = dislikePop.value; scaleY = dislikePop.value },
+            )
+            if (!dislikeLabel.isNullOrBlank()) Text(dislikeLabel, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        }
     }
 }
 
