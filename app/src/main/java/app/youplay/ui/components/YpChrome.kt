@@ -114,6 +114,7 @@ fun YpActionPill(
             .height(36.dp)
             .clip(RoundedCornerShape(50))
             .background(bg)
+            .border(1.dp, if (active) YouPlayRed.copy(0.45f) else Color.White.copy(0.08f), RoundedCornerShape(50))
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
